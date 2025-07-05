@@ -1,0 +1,10 @@
+packages:
+  vim:
+    source: ./vim
+    targets:
+      - ./test-home
+  vscode:
+    source: ./vscode
+    targets:
+      - ./test-home/.config/Code/User
+      - ./test-home/.config/Cursor/User
