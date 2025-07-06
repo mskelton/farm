@@ -6,7 +6,7 @@ A modern dotfile manager inspired by GNU Stow with enhanced features for better 
 
 - **Lockfile tracking**: Keeps track of all created symlinks in a lockfile (`farm.lock`)
 - **Dead link cleanup**: Automatically removes broken symlinks when re-linking
-- **YAML configuration**: Simple and readable YAML configuration instead of `.stowrc`
+- **YAML configuration**: Simple and readable YAML configuration
 - **Multi-target support**: Symlink a single source to multiple target locations
 - **Granular folding control**: Fine-grained control over directory folding behavior
 
@@ -31,8 +31,8 @@ packages:
   vscode:
     source: ./vscode
     targets:
-      - ~/.config/Code/User
-      - ~/.config/Cursor/User
+      - ~/Library/Application Support/Code/User
+      - ~/Library/Application Support/Cursor/User
 
   config:
     source: ./config
@@ -48,31 +48,37 @@ packages:
 ## Usage
 
 ### Link all packages
+
 ```bash
 farm link
 ```
 
 ### Link specific package
+
 ```bash
 farm link vim
 ```
 
 ### Remove symlinks for a package
+
 ```bash
 farm unlink vim
 ```
 
 ### Check status
+
 ```bash
 farm status
 ```
 
 ### Dry run (see what would be done)
+
 ```bash
 farm link --dry-run
 ```
 
 ### Verbose output
+
 ```bash
 farm link -v
 ```
@@ -97,12 +103,14 @@ The lockfile (`farm.lock`) tracks all created symlinks and is used to:
 ## Example Workflow
 
 1. Set up your dotfiles repository:
+
 ```bash
 mkdir ~/dotfiles
 cd ~/dotfiles
 ```
 
 2. Organize your dotfiles by package:
+
 ```bash
 mkdir -p vim vscode zsh
 mv ~/.vimrc vim/
@@ -111,6 +119,7 @@ mv ~/.zshrc zsh/
 ```
 
 3. Create `farm.yaml`:
+
 ```yaml
 packages:
   vim:
@@ -128,11 +137,13 @@ packages:
 ```
 
 4. Link your dotfiles:
+
 ```bash
 farm link -v
 ```
 
 5. Check status:
+
 ```bash
 farm status
 ```
@@ -140,6 +151,7 @@ farm status
 ## Testing
 
 Run the comprehensive test suite:
+
 ```bash
 go test ./... -v
 ```
