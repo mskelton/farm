@@ -1,22 +1,21 @@
 packages:
   - source: ./vim
     targets:
-      - ~/.vim
-      - ~/.config/nvim
+      - test-home/.vim
+      - test-home/.config/nvim
 
   - source: ./vscode
     targets:
-      - ~/Library/Application Support/Code/User
-      - ~/Library/Application Support/Cursor/User
+      - test-home/Library/Application Support/Code/User
+      - test-home/Library/Application Support/Cursor/User
 
-  - source: ./config
+  - source: ./.config
     targets:
-      - ~/.config
-    default_fold: false  # Don't fold directories by default
+      - test-home/.config
+    default_fold: false
     fold:
-      - bin              # But do fold the bin directory
-    no_fold:
-      - sensitive        # Never fold the sensitive directory
+      - bin
+      - nested/dir
 
 ignore:
   - "*.tmp"
