@@ -28,10 +28,9 @@ var rootCmd = &cobra.Command{
 }
 
 var linkCmd = &cobra.Command{
-	Use:   "link [package]",
-	Short: "Create symlinks for packages",
-	Long:  "Create symlinks for all packages or a specific package",
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "link",
+	Short: "Create symlinks",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(configPath)
 		if err != nil {
@@ -73,12 +72,10 @@ var linkCmd = &cobra.Command{
 }
 
 var unlinkCmd = &cobra.Command{
-	Use:   "unlink <package>",
-	Short: "Remove symlinks for a package",
-	Args:  cobra.ExactArgs(1),
+	Use:   "unlink",
+	Short: "Remove symlinks",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		packageName := args[0]
-
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
@@ -90,7 +87,7 @@ var unlinkCmd = &cobra.Command{
 		}
 
 		l := linker.New(cfg, lock, dryRun)
-		result, err := l.Unlink(packageName)
+		result, err := l.Unlink()
 		if err != nil {
 			return fmt.Errorf("failed to unlink: %w", err)
 		}
@@ -106,7 +103,7 @@ var unlinkCmd = &cobra.Command{
 			if err := lock.Save(lockfilePath); err != nil {
 				return fmt.Errorf("failed to save lockfile: %w", err)
 			}
-			cmd.Printf("✓ Removed %d symlinks for package '%s'\n", len(result.Removed), packageName)
+			cmd.Printf("✓ Removed %d symlinks\n", len(result.Removed))
 		}
 
 		if len(result.Errors) > 0 {
@@ -135,23 +132,15 @@ var statusCmd = &cobra.Command{
 			return nil
 		}
 
-		packages := make(map[string][]lockfile.Symlink)
-		for _, link := range lock.Symlinks {
-			packages[link.Package] = append(packages[link.Package], link)
-		}
+		cmd.Printf("Tracking %d symlinks:\n\n", len(lock.Symlinks))
 
-		cmd.Printf("Tracking %d symlinks across %d packages:\n\n", len(lock.Symlinks), len(packages))
-
-		for pkgName, links := range packages {
-			cmd.Printf("Package: %s (%d links)\n", pkgName, len(links))
-			if verbose {
-				for _, link := range links {
-					cmd.Printf("  %s -> %s", link.Target, link.Source)
-					if link.IsFolded {
-						cmd.Print(" [folded]")
-					}
-					cmd.Println()
+		if verbose {
+			for target, link := range lock.Symlinks {
+				cmd.Printf("  %s -> %s", target, link.Source)
+				if link.IsFolded {
+					cmd.Print(" [folded]")
 				}
+				cmd.Println()
 			}
 		}
 

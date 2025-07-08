@@ -33,12 +33,10 @@ func TestCLIIntegration(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(vscodeDir, "settings.json"), []byte(`{"editor": {}}`), 0644))
 
 	configContent := `packages:
-  vim:
-    source: ./dotfiles/vim
+  - source: ./dotfiles/vim
     targets:
       - ./home/.vim
-  vscode:
-    source: ./dotfiles/vscode
+  - source: ./dotfiles/vscode
     targets:
       - ./home/.config/Code/User
       - ./home/.config/Cursor/User
@@ -51,7 +49,7 @@ func TestCLIIntegration(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("link all packages", func(t *testing.T) {
+	t.Run("link", func(t *testing.T) {
 		rootCmd.SetArgs([]string{"link", "-v"})
 		err := rootCmd.Execute()
 		assert.NoError(t, err)
@@ -70,8 +68,8 @@ func TestCLIIntegration(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("unlink package", func(t *testing.T) {
-		rootCmd.SetArgs([]string{"unlink", "vim"})
+	t.Run("unlink", func(t *testing.T) {
+		rootCmd.SetArgs([]string{"unlink"})
 		err := rootCmd.Execute()
 		assert.NoError(t, err)
 
@@ -114,8 +112,7 @@ func TestCLIFoldingBehavior(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(noFoldDir, "file2.txt"), []byte("no fold"), 0644))
 
 	configContent := `packages:
-  test:
-    source: ./source
+  - source: ./source
     targets:
       - ./target
     default_fold: false
@@ -157,8 +154,7 @@ func TestCLIDeadLinkCleanup(t *testing.T) {
 	require.NoError(t, os.WriteFile(deadFile, []byte("will be deleted"), 0644))
 
 	configContent := `packages:
-  test:
-    source: ./source
+  - source: ./source
     targets:
       - ./target
 `

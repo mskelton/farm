@@ -16,8 +16,6 @@ type LockFile struct {
 
 type Symlink struct {
 	Source   string    `json:"source"`
-	Target   string    `json:"target"`
-	Package  string    `json:"package"`
 	Created  time.Time `json:"created"`
 	IsFolded bool      `json:"is_folded"`
 }
@@ -83,11 +81,9 @@ func (l *LockFile) Save(path string) error {
 	return nil
 }
 
-func (l *LockFile) AddSymlink(target, source, packageName string, isFolded bool) {
+func (l *LockFile) AddSymlink(target string, source string, isFolded bool) {
 	l.Symlinks[target] = Symlink{
 		Source:   source,
-		Target:   target,
-		Package:  packageName,
 		Created:  time.Now(),
 		IsFolded: isFolded,
 	}
@@ -133,14 +129,4 @@ func (l *LockFile) GetDeadSymlinks() ([]string, error) {
 	}
 
 	return dead, nil
-}
-
-func (l *LockFile) GetSymlinksForPackage(packageName string) []Symlink {
-	var symlinks []Symlink
-	for _, link := range l.Symlinks {
-		if link.Package == packageName {
-			symlinks = append(symlinks, link)
-		}
-	}
-	return symlinks
 }

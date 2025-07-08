@@ -23,8 +23,8 @@ func TestSaveAndLoad(t *testing.T) {
 	lockPath := filepath.Join(tmpDir, "test.lock")
 
 	original := New()
-	original.AddSymlink("/home/user/.vimrc", "/home/user/dotfiles/vim/.vimrc", "vim", false)
-	original.AddSymlink("/home/user/.config/nvim", "/home/user/dotfiles/nvim", "nvim", true)
+	original.AddSymlink("/home/user/.vimrc", "/home/user/dotfiles/vim/.vimrc", false)
+	original.AddSymlink("/home/user/.config/nvim", "/home/user/dotfiles/nvim", true)
 
 	err := original.Save(lockPath)
 	require.NoError(t, err)
@@ -37,12 +37,10 @@ func TestSaveAndLoad(t *testing.T) {
 
 	vimLink := loaded.Symlinks["/home/user/.vimrc"]
 	assert.Equal(t, "/home/user/dotfiles/vim/.vimrc", vimLink.Source)
-	assert.Equal(t, "vim", vimLink.Package)
 	assert.False(t, vimLink.IsFolded)
 
 	nvimLink := loaded.Symlinks["/home/user/.config/nvim"]
 	assert.Equal(t, "/home/user/dotfiles/nvim", nvimLink.Source)
-	assert.Equal(t, "nvim", nvimLink.Package)
 	assert.True(t, nvimLink.IsFolded)
 }
 
@@ -87,12 +85,11 @@ func TestLoadWrongVersion(t *testing.T) {
 func TestAddRemoveSymlink(t *testing.T) {
 	lock := New()
 
-	lock.AddSymlink("/home/user/.vimrc", "/home/user/dotfiles/vim/.vimrc", "vim", false)
+	lock.AddSymlink("/home/user/.vimrc", "/home/user/dotfiles/vim/.vimrc", false)
 	assert.Len(t, lock.Symlinks, 1)
 
 	link := lock.Symlinks["/home/user/.vimrc"]
 	assert.Equal(t, "/home/user/dotfiles/vim/.vimrc", link.Source)
-	assert.Equal(t, "vim", link.Package)
 	assert.False(t, link.IsFolded)
 
 	lock.RemoveSymlink("/home/user/.vimrc")
@@ -124,9 +121,9 @@ func TestGetDeadSymlinks(t *testing.T) {
 	nonExistentLink := filepath.Join(tmpDir, "non-existent")
 
 	lock := New()
-	lock.AddSymlink(goodLink, sourceFile, "test", false)
-	lock.AddSymlink(deadLink, deadSourceFile, "test", false)
-	lock.AddSymlink(nonExistentLink, sourceFile, "test", false)
+	lock.AddSymlink(goodLink, sourceFile, false)
+	lock.AddSymlink(deadLink, deadSourceFile, false)
+	lock.AddSymlink(nonExistentLink, sourceFile, false)
 
 	dead, err := lock.GetDeadSymlinks()
 	require.NoError(t, err)
@@ -134,21 +131,4 @@ func TestGetDeadSymlinks(t *testing.T) {
 	assert.Contains(t, dead, deadLink)
 	assert.Contains(t, dead, nonExistentLink)
 	assert.NotContains(t, dead, goodLink)
-}
-
-func TestGetSymlinksForPackage(t *testing.T) {
-	lock := New()
-
-	lock.AddSymlink("/home/user/.vimrc", "/home/user/dotfiles/vim/.vimrc", "vim", false)
-	lock.AddSymlink("/home/user/.vim", "/home/user/dotfiles/vim", "vim", true)
-	lock.AddSymlink("/home/user/.config/nvim", "/home/user/dotfiles/nvim", "nvim", true)
-
-	vimLinks := lock.GetSymlinksForPackage("vim")
-	assert.Len(t, vimLinks, 2)
-
-	nvimLinks := lock.GetSymlinksForPackage("nvim")
-	assert.Len(t, nvimLinks, 1)
-
-	noLinks := lock.GetSymlinksForPackage("nonexistent")
-	assert.Empty(t, noLinks)
 }

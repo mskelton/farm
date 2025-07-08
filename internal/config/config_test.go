@@ -21,24 +21,22 @@ func TestLoadConfig(t *testing.T) {
 			name: "valid config with single target",
 			configYAML: `
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
     targets:
       - ~/.config/nvim
 `,
 			expectError: false,
 			validate: func(t *testing.T, c *Config) {
 				assert.Len(t, c.Packages, 1)
-				assert.NotNil(t, c.Packages["vim"])
-				assert.Len(t, c.Packages["vim"].Targets, 1)
+				assert.NotNil(t, c.Packages[0])
+				assert.Len(t, c.Packages[0].Targets, 1)
 			},
 		},
 		{
 			name: "valid config with multiple targets",
 			configYAML: `
 packages:
-  vscode:
-    source: ./vscode
+  - source: ./vscode
     targets:
       - ~/.config/Code/User
       - ~/.config/Cursor/User
@@ -46,16 +44,15 @@ packages:
 			expectError: false,
 			validate: func(t *testing.T, c *Config) {
 				assert.Len(t, c.Packages, 1)
-				assert.NotNil(t, c.Packages["vscode"])
-				assert.Len(t, c.Packages["vscode"].Targets, 2)
+				assert.NotNil(t, c.Packages[0])
+				assert.Len(t, c.Packages[0].Targets, 2)
 			},
 		},
 		{
 			name: "config with folding settings",
 			configYAML: `
 packages:
-  config:
-    source: ./config
+  - source: ./config
     targets:
       - ~/.config
     default_fold: false
@@ -66,7 +63,7 @@ packages:
 `,
 			expectError: false,
 			validate: func(t *testing.T, c *Config) {
-				pkg := c.Packages["config"]
+				pkg := c.Packages[0]
 				assert.False(t, pkg.DefaultFold)
 				assert.Contains(t, pkg.Fold, "bin")
 				assert.Contains(t, pkg.NoFold, "sensitive")
@@ -76,8 +73,7 @@ packages:
 			name: "missing source",
 			configYAML: `
 packages:
-  vim:
-    targets:
+  - targets:
       - ~/.config/nvim
 `,
 			expectError: true,
@@ -87,8 +83,7 @@ packages:
 			name: "missing targets",
 			configYAML: `
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
 `,
 			expectError: true,
 			errorMsg:    "at least one target is required",
@@ -97,8 +92,7 @@ packages:
 			name: "empty target",
 			configYAML: `
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
     targets:
       - ""
 `,

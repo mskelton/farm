@@ -1,10 +1,19 @@
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
     targets:
-      - ./test-home
-  vscode:
-    source: ./vscode
+      - ~/.vim
+      - ~/.config/nvim
+
+  - source: ./vscode
     targets:
-      - ./test-home/.config/Code/User
-      - ./test-home/.config/Cursor/User
+      - ~/Library/Application Support/Code/User
+      - ~/Library/Application Support/Cursor/User
+
+  - source: ./config
+    targets:
+      - ~/.config
+    default_fold: false  # Don't fold directories by default
+    fold:
+      - bin              # But do fold the bin directory
+    no_fold:
+      - sensitive        # Never fold the sensitive directory

@@ -29,8 +29,8 @@ func TestLinkSimpleFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{
-			"test": {
+		Packages: []*config.Package{
+			{
 				Source:  sourceDir,
 				Targets: []string{targetDir},
 			},
@@ -74,8 +74,8 @@ func TestLinkMultipleTargets(t *testing.T) {
 	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{
-			"test": {
+		Packages: []*config.Package{
+			{
 				Source:  sourceDir,
 				Targets: []string{target1Dir, target2Dir},
 			},
@@ -118,8 +118,8 @@ func TestFoldingBehavior(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(noFoldDir, "file2.txt"), []byte("nofold2"), 0644))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{
-			"test": {
+		Packages: []*config.Package{
+			{
 				Source:      sourceDir,
 				Targets:     []string{targetDir},
 				DefaultFold: false,
@@ -157,12 +157,12 @@ func TestRemoveDeadLinks(t *testing.T) {
 	require.NoError(t, os.Symlink(deadSource, deadTarget))
 
 	lock := lockfile.New()
-	lock.AddSymlink(deadTarget, deadSource, "test", false)
+	lock.AddSymlink(deadTarget, deadSource, false)
 
 	require.NoError(t, os.Remove(deadSource))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{},
+		Packages: []*config.Package{},
 	}
 
 	linker := New(cfg, lock, false)
@@ -183,8 +183,8 @@ func TestDryRun(t *testing.T) {
 	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{
-			"test": {
+		Packages: []*config.Package{
+			{
 				Source:  sourceDir,
 				Targets: []string{targetDir},
 			},
@@ -213,14 +213,14 @@ func TestUnlink(t *testing.T) {
 	require.NoError(t, os.Symlink(testFile, targetFile))
 
 	lock := lockfile.New()
-	lock.AddSymlink(targetFile, testFile, "test-pkg", false)
+	lock.AddSymlink(targetFile, testFile, false)
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{},
+		Packages: []*config.Package{},
 	}
 
 	linker := New(cfg, lock, false)
-	result, err := linker.Unlink("test-pkg")
+	result, err := linker.Unlink()
 	require.NoError(t, err)
 
 	assert.Len(t, result.Removed, 1)
@@ -242,8 +242,8 @@ func TestReplaceExistingSymlink(t *testing.T) {
 	require.NoError(t, os.Symlink(oldSource, targetFile))
 
 	cfg := &config.Config{
-		Packages: map[string]*config.Package{
-			"test": {
+		Packages: []*config.Package{
+			{
 				Source:  sourceDir,
 				Targets: []string{targetDir},
 			},
@@ -324,8 +324,8 @@ func TestNestedFolding(t *testing.T) {
 			require.NoError(t, os.MkdirAll(testTargetDir, 0755))
 
 			cfg := &config.Config{
-				Packages: map[string]*config.Package{
-					"test": {
+				Packages: []*config.Package{
+					{
 						Source:      sourceDir,
 						Targets:     []string{testTargetDir},
 						DefaultFold: tt.defaultFold,

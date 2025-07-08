@@ -53,9 +53,9 @@ func (l *Linker) Link() (*LinkResult, error) {
 		result.Removed = append(result.Removed, dead)
 	}
 
-	for pkgName, pkg := range l.config.Packages {
+	for _, pkg := range l.config.Packages {
 		for _, target := range pkg.Targets {
-			if err := l.linkPackage(pkgName, pkg, target, result); err != nil {
+			if err := l.linkPackage(pkg, target, result); err != nil {
 				result.Errors = append(result.Errors, err)
 			}
 		}
@@ -64,11 +64,11 @@ func (l *Linker) Link() (*LinkResult, error) {
 	return result, nil
 }
 
-func (l *Linker) linkPackage(pkgName string, pkg *config.Package, targetBase string, result *LinkResult) error {
-	return l.linkDirectory(pkg.Source, targetBase, pkgName, pkg, result)
+func (l *Linker) linkPackage(pkg *config.Package, targetBase string, result *LinkResult) error {
+	return l.linkDirectory(pkg.Source, targetBase, pkg, result)
 }
 
-func (l *Linker) linkDirectory(source, target string, pkgName string, pkg *config.Package, result *LinkResult) error {
+func (l *Linker) linkDirectory(source, target string, pkg *config.Package, result *LinkResult) error {
 	entries, err := os.ReadDir(source)
 	if err != nil {
 		return fmt.Errorf("failed to read source directory %s: %w", source, err)
@@ -80,16 +80,16 @@ func (l *Linker) linkDirectory(source, target string, pkgName string, pkg *confi
 
 		if entry.IsDir() {
 			if l.shouldFold(entry.Name(), source, pkg) {
-				if err := l.createSymlink(sourcePath, targetPath, pkgName, true, result); err != nil {
+				if err := l.createSymlink(sourcePath, targetPath, true, result); err != nil {
 					return err
 				}
 			} else {
-				if err := l.linkDirectory(sourcePath, targetPath, pkgName, pkg, result); err != nil {
+				if err := l.linkDirectory(sourcePath, targetPath, pkg, result); err != nil {
 					return err
 				}
 			}
 		} else {
-			if err := l.createSymlink(sourcePath, targetPath, pkgName, false, result); err != nil {
+			if err := l.createSymlink(sourcePath, targetPath, false, result); err != nil {
 				return err
 			}
 		}
@@ -128,7 +128,7 @@ func (l *Linker) shouldFold(dirName, currentPath string, pkg *config.Package) bo
 	return pkg.DefaultFold
 }
 
-func (l *Linker) createSymlink(source, target string, pkgName string, isFolded bool, result *LinkResult) error {
+func (l *Linker) createSymlink(source, target string, isFolded bool, result *LinkResult) error {
 	targetDir := filepath.Dir(target)
 	if !l.dryRun {
 		if err := os.MkdirAll(targetDir, 0755); err != nil {
@@ -169,30 +169,28 @@ func (l *Linker) createSymlink(source, target string, pkgName string, isFolded b
 		}
 	}
 
-	l.lockFile.AddSymlink(target, source, pkgName, isFolded)
+	l.lockFile.AddSymlink(target, source, isFolded)
 	result.Created = append(result.Created, target)
 
 	return nil
 }
 
-func (l *Linker) Unlink(packageName string) (*LinkResult, error) {
+func (l *Linker) Unlink() (*LinkResult, error) {
 	result := &LinkResult{
 		Removed: []string{},
 		Errors:  []error{},
 	}
 
-	links := l.lockFile.GetSymlinksForPackage(packageName)
-
-	for _, link := range links {
+	for target := range l.lockFile.Symlinks {
 		if !l.dryRun {
-			if err := os.Remove(link.Target); err != nil && !os.IsNotExist(err) {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to remove symlink %s: %w", link.Target, err))
+			if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to remove symlink %s: %w", target, err))
 				continue
 			}
 		}
 
-		l.lockFile.RemoveSymlink(link.Target)
-		result.Removed = append(result.Removed, link.Target)
+		l.lockFile.RemoveSymlink(target)
+		result.Removed = append(result.Removed, target)
 	}
 
 	return result, nil

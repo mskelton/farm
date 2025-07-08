@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	Packages map[string]*Package `yaml:"packages"`
+	Packages []*Package `yaml:"packages"`
 }
 
 type Package struct {
@@ -43,32 +43,33 @@ func Load(configPath string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	for name, pkg := range c.Packages {
+	for i, pkg := range c.Packages {
 		if pkg.Source == "" {
-			return fmt.Errorf("package %s: source is required", name)
+			return fmt.Errorf("package %d: source is required", i)
 		}
+
 		if len(pkg.Targets) == 0 {
-			return fmt.Errorf("package %s: at least one target is required", name)
+			return fmt.Errorf("package %d: at least one target is required", i)
 		}
 
 		for _, target := range pkg.Targets {
 			if target == "" {
-				return fmt.Errorf("package %s: empty target path", name)
+				return fmt.Errorf("package %d: empty target path", i)
 			}
 		}
 
 		sourceAbs, err := filepath.Abs(pkg.Source)
 		if err != nil {
-			return fmt.Errorf("package %s: invalid source path: %w", name, err)
+			return fmt.Errorf("package %d: invalid source path: %w", i, err)
 		}
 		pkg.Source = sourceAbs
 
-		for i, target := range pkg.Targets {
+		for j, target := range pkg.Targets {
 			targetAbs, err := filepath.Abs(expandHome(target))
 			if err != nil {
-				return fmt.Errorf("package %s: invalid target path %s: %w", name, target, err)
+				return fmt.Errorf("package %d: invalid target path %s: %w", i, target, err)
 			}
-			pkg.Targets[i] = targetAbs
+			pkg.Targets[j] = targetAbs
 		}
 	}
 	return nil

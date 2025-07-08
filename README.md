@@ -22,20 +22,17 @@ Create a `farm.yaml` file in your dotfiles directory:
 
 ```yaml
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
     targets:
       - ~/.vim
       - ~/.config/nvim
 
-  vscode:
-    source: ./vscode
+  - source: ./vscode
     targets:
       - ~/Library/Application Support/Code/User
       - ~/Library/Application Support/Cursor/User
 
-  config:
-    source: ./config
+  - source: ./config
     targets:
       - ~/.config
     default_fold: false  # Don't fold directories by default
@@ -47,22 +44,16 @@ packages:
 
 ## Usage
 
-### Link all packages
+### Create symlinks
 
 ```bash
 farm link
 ```
 
-### Link specific package
+### Remove symlinks
 
 ```bash
-farm link vim
-```
-
-### Remove symlinks for a package
-
-```bash
-farm unlink vim
+farm unlink
 ```
 
 ### Check status
@@ -97,7 +88,6 @@ The `no_fold` list takes precedence over `fold` and `default_fold`.
 
 The lockfile (`farm.lock`) tracks all created symlinks and is used to:
 - Clean up dead symlinks when source files are moved or deleted
-- Track which package owns each symlink
 - Show the status of all managed symlinks
 
 ## Example Workflow
@@ -122,18 +112,17 @@ mv ~/.zshrc zsh/
 
 ```yaml
 packages:
-  vim:
-    source: ./vim
+  - source: ./vim
     targets:
-      - ~
-  vscode:
-    source: ./vscode
+      - '~'
+
+  - source: ./vscode
     targets:
       - ~/.config/Code/User
-  zsh:
-    source: ./zsh
+
+  - source: ./zsh
     targets:
-      - ~
+      - '~'
 ```
 
 4. Link your dotfiles:
