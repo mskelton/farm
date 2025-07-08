@@ -264,6 +264,89 @@ func TestReplaceExistingSymlink(t *testing.T) {
 	assert.Equal(t, "new", string(content))
 }
 
+func TestIgnorePatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create files that should be ignored by default patterns
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".git"), []byte("git"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, ".gitignore"), []byte("gitignore"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "README.md"), []byte("readme"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "LICENSE"), []byte("license"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "COPYING"), []byte("copying"), 0644))
+	// These should NOT be ignored with new patterns
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "backup.txt~"), []byte("backup"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "normal.txt"), []byte("normal"), 0644))
+
+	cfg := &config.Config{
+		Packages: []*config.Package{
+			{
+				Source:  sourceDir,
+				Targets: []string{targetDir},
+			},
+		},
+	}
+
+	// Validate config to compile ignore patterns
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Both normal.txt and backup.txt~ should be linked (not ignored by default)
+	assert.Len(t, result.Created, 2)
+	assert.Contains(t, result.Created, filepath.Join(targetDir, "normal.txt"))
+	assert.Contains(t, result.Created, filepath.Join(targetDir, "backup.txt~"))
+
+	// Verify ignored files don't exist in target
+	_, err = os.Lstat(filepath.Join(targetDir, ".git"))
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetDir, ".gitignore"))
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetDir, "README.md"))
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetDir, "LICENSE"))
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Lstat(filepath.Join(targetDir, "COPYING"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestCustomIgnorePatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create test files
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "test_file.txt"), []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "data.bak"), []byte("backup"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "keep.txt"), []byte("keep"), 0644))
+
+	cfg := &config.Config{
+		Ignore: []string{"test_*", "*.bak"},
+		Packages: []*config.Package{
+			{
+				Source:  sourceDir,
+				Targets: []string{targetDir},
+			},
+		},
+	}
+
+	// Validate config to compile ignore patterns
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Only keep.txt should be linked
+	assert.Len(t, result.Created, 1)
+	assert.Contains(t, result.Created, filepath.Join(targetDir, "keep.txt"))
+}
+
 func TestNestedFolding(t *testing.T) {
 	_, sourceDir, targetDir := setupTestEnvironment(t)
 

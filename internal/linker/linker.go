@@ -75,6 +75,11 @@ func (l *Linker) linkDirectory(source, target string, pkg *config.Package, resul
 	}
 
 	for _, entry := range entries {
+		// Skip ignored files/directories
+		if l.config.ShouldIgnore(entry.Name()) {
+			continue
+		}
+
 		sourcePath := filepath.Join(source, entry.Name())
 		targetPath := filepath.Join(target, entry.Name())
 

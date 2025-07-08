@@ -17,3 +17,9 @@ packages:
       - bin              # But do fold the bin directory
     no_fold:
       - sensitive        # Never fold the sensitive directory
+
+ignore:
+  - "*.tmp"
+  - "*.log"
+  - "cache*"
+  - "*.swp"
