@@ -76,8 +76,17 @@ func (l *Linker) linkDirectory(source, target string, pkg *config.Package, resul
 	}
 
 	for _, entry := range entries {
+		// Construct relative path from package source
+		relativePath := strings.TrimPrefix(source, pkg.Source)
+		relativePath = strings.TrimPrefix(relativePath, "/")
+		if relativePath != "" {
+			relativePath = filepath.Join(relativePath, entry.Name())
+		} else {
+			relativePath = entry.Name()
+		}
+
 		// Skip ignored files/directories
-		if l.config.ShouldIgnore(entry.Name()) {
+		if l.config.ShouldIgnore(relativePath) {
 			continue
 		}
 
@@ -113,25 +122,59 @@ func (l *Linker) shouldFold(dirName, currentPath string, pkg *config.Package) bo
 		relativePath = dirName
 	}
 
+	// Check no_fold patterns first
 	for _, noFoldPath := range pkg.NoFold {
-		if matched, _ := filepath.Match(noFoldPath, relativePath); matched {
+		if l.matchesPath(noFoldPath, relativePath) {
 			return false
 		}
-		if strings.HasPrefix(relativePath, noFoldPath+"/") {
+
+		// Check if this directory contains any paths that would match no_fold patterns
+		// If folding this directory would prevent no_fold patterns from being honored, don't fold
+		if strings.HasPrefix(noFoldPath, relativePath+"/") {
 			return false
 		}
 	}
 
+	// Check fold patterns
 	for _, foldPath := range pkg.Fold {
-		if matched, _ := filepath.Match(foldPath, relativePath); matched {
-			return true
-		}
-		if strings.HasPrefix(relativePath, foldPath+"/") {
+		if l.matchesPath(foldPath, relativePath) {
 			return true
 		}
 	}
 
 	return pkg.DefaultFold
+}
+
+func (l *Linker) matchesPath(pattern, path string) bool {
+	// Direct match
+	if pattern == path {
+		return true
+	}
+
+	// Glob match
+	if matched, _ := filepath.Match(pattern, path); matched {
+		return true
+	}
+
+	// Check if path is under the pattern directory
+	if strings.HasPrefix(path, pattern+"/") {
+		return true
+	}
+
+	// Check if pattern matches any parent directory of path
+	pathParts := strings.Split(path, "/")
+	patternParts := strings.Split(pattern, "/")
+
+	if len(pathParts) >= len(patternParts) {
+		for i := range patternParts {
+			if matched, _ := filepath.Match(patternParts[i], pathParts[i]); !matched {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
 }
 
 func (l *Linker) createSymlink(source, target string, isFolded bool, result *LinkResult) error {

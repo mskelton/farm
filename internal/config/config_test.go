@@ -209,3 +209,183 @@ func TestExpandHome(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiLevelIgnorePatterns(t *testing.T) {
+	configYAML := `
+ignore:
+  - "EmmyLua.spoon/annotations"
+  - "deep/nested/path"
+  - "*.tmp"
+packages:
+  - source: ./test
+    targets:
+      - ./target
+`
+	tmpFile, err := os.CreateTemp("", "test-multilevel-*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(configYAML)
+	require.NoError(t, err)
+	tmpFile.Close()
+
+	config, err := Load(tmpFile.Name())
+	require.NoError(t, err)
+
+	tests := []struct {
+		path     string
+		expected bool
+		desc     string
+	}{
+		// Multi-level ignore patterns
+		{"EmmyLua.spoon/annotations", true, "should ignore multi-level path"},
+		{"EmmyLua.spoon/annotations/file.lua", true, "should ignore files under multi-level path"},
+		{"EmmyLua.spoon/init.lua", false, "should not ignore sibling files"},
+		{"deep/nested/path", true, "should ignore nested directory"},
+		{"deep/nested/path/file.txt", true, "should ignore files under nested directory"},
+		{"deep/nested/other.txt", false, "should not ignore files in parent directory"},
+		
+		// Standard glob patterns
+		{"file.tmp", true, "should ignore files matching glob pattern"},
+		{"data/file.tmp", true, "should ignore files matching glob pattern in subdirectory"},
+		{"file.txt", false, "should not ignore files not matching glob pattern"},
+		
+		// Default ignore patterns
+		{".git", true, "should ignore git files"},
+		{".gitignore", true, "should ignore git files"},
+		{"README.md", true, "should ignore README files"},
+		{"LICENSE", true, "should ignore LICENSE files"},
+		{"COPYING", true, "should ignore COPYING files"},
+		
+		// Files that should NOT be ignored
+		{"normal.txt", false, "should not ignore normal files"},
+		{"EmmyLua.spoon", false, "should not ignore directory itself"},
+		{"deep/nested", false, "should not ignore parent directory"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := config.ShouldIgnore(tt.path)
+			assert.Equal(t, tt.expected, result, "ShouldIgnore(%q) = %v, want %v", tt.path, result, tt.expected)
+		})
+	}
+}
+
+func TestMatchesPath(t *testing.T) {
+	config := &Config{}
+	
+	tests := []struct {
+		pattern  string
+		path     string
+		expected bool
+		desc     string
+	}{
+		// Direct matches
+		{"file.txt", "file.txt", true, "should match exact filename"},
+		{"dir/file.txt", "dir/file.txt", true, "should match exact path"},
+		
+		// Glob patterns
+		{"*.txt", "file.txt", true, "should match glob pattern"},
+		{"test*", "test_file.txt", true, "should match glob pattern with prefix"},
+		{"*.tmp", "backup.tmp", true, "should match glob pattern with suffix"},
+		
+		// Multi-level patterns
+		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/annotations", true, "should match multi-level path exactly"},
+		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/annotations/file.lua", true, "should match files under multi-level path"},
+		{"deep/nested/path", "deep/nested/path", true, "should match nested directory"},
+		{"deep/nested/path", "deep/nested/path/file.txt", true, "should match files under nested directory"},
+		
+		// Path hierarchy matching
+		{"app/data", "app/data/cache/file.txt", true, "should match files in subdirectories"},
+		{"app/*/logs", "app/prod/logs", true, "should match with wildcard in middle"},
+		{"app/*/logs", "app/prod/logs/app.log", true, "should match files under wildcard pattern"},
+		
+		// Negative cases
+		{"file.txt", "other.txt", false, "should not match different filename"},
+		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/init.lua", false, "should not match sibling files"},
+		{"deep/nested/path", "deep/nested/other.txt", false, "should not match files in parent directory"},
+		{"*.tmp", "file.txt", false, "should not match different extension"},
+		{"app/data", "app/config", false, "should not match sibling directories"},
+		{"app/data", "other/data", false, "should not match different parent"},
+		
+		// Edge cases
+		{"", "file.txt", false, "empty pattern should not match"},
+		{"file.txt", "", false, "should not match empty path"},
+		{"", "", true, "empty pattern should match empty path"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := config.matchesPath(tt.pattern, tt.path)
+			assert.Equal(t, tt.expected, result, "matchesPath(%q, %q) = %v, want %v", tt.pattern, tt.path, result, tt.expected)
+		})
+	}
+}
+
+func TestConfigIgnoreWithComplexPatterns(t *testing.T) {
+	configYAML := `
+ignore:
+  - "node_modules"
+  - "*.log"
+  - "build/temp"
+  - "src/*/generated"
+  - "docs/api/v*/internal"
+packages:
+  - source: ./project
+    targets:
+      - ~/.config/project
+`
+	tmpFile, err := os.CreateTemp("", "test-complex-*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(configYAML)
+	require.NoError(t, err)
+	tmpFile.Close()
+
+	config, err := Load(tmpFile.Name())
+	require.NoError(t, err)
+
+	tests := []struct {
+		path     string
+		expected bool
+		desc     string
+	}{
+		// Directory ignores
+		{"node_modules", true, "should ignore node_modules directory"},
+		{"node_modules/package/index.js", true, "should ignore files in node_modules"},
+		{"src/node_modules", true, "should ignore node_modules directory anywhere"},
+		
+		// Glob patterns
+		{"app.log", true, "should ignore log files"},
+		{"error.log", true, "should ignore log files"},
+		{"logs/app.log", true, "should ignore log files in subdirectories"},
+		{"app.txt", false, "should not ignore non-log files"},
+		
+		// Multi-level patterns
+		{"build/temp", true, "should ignore build/temp directory"},
+		{"build/temp/cache.dat", true, "should ignore files in build/temp"},
+		{"build/output", false, "should not ignore other build directories"},
+		{"temp", false, "should not ignore temp at root level"},
+		
+		// Wildcard patterns
+		{"src/components/generated", true, "should ignore generated in any src subdirectory"},
+		{"src/utils/generated", true, "should ignore generated in any src subdirectory"},
+		{"src/generated", false, "should not match direct src/generated"},
+		{"src/components/generated/types.ts", true, "should ignore files in generated directories"},
+		
+		// Complex nested patterns
+		{"docs/api/v1/internal", true, "should ignore versioned internal docs"},
+		{"docs/api/v2/internal", true, "should ignore versioned internal docs"},
+		{"docs/api/v1/internal/secret.md", true, "should ignore files in versioned internal docs"},
+		{"docs/api/v1/public", false, "should not ignore public docs"},
+		{"docs/api/internal", false, "should not ignore non-versioned internal"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := config.ShouldIgnore(tt.path)
+			assert.Equal(t, tt.expected, result, "ShouldIgnore(%q) = %v, want %v", tt.path, result, tt.expected)
+		})
+	}
+}

@@ -439,7 +439,8 @@ func TestNestedFolding(t *testing.T) {
 			fold:        []string{},
 			noFold:      []string{"parent/child"},
 			expectFolded: map[string]bool{
-				"parent": true,
+				"parent":       false, // parent cannot be folded because it contains no_fold subdirectory
+				"parent/child": false,
 			},
 		},
 	}
@@ -482,4 +483,242 @@ func TestNestedFolding(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMultiLevelIgnorePatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create directories and files for multi-level testing
+	emmyDir := filepath.Join(sourceDir, "EmmyLua.spoon")
+	require.NoError(t, os.MkdirAll(emmyDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(emmyDir, "annotations"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(emmyDir, "annotations", "file.lua"), []byte("annotation"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(emmyDir, "init.lua"), []byte("init"), 0644))
+
+	// Create nested directories
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "deep", "nested", "path"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "deep", "nested", "path", "file.txt"), []byte("deep file"), 0644))
+
+	cfg := &config.Config{
+		Ignore: []string{
+			"EmmyLua.spoon/annotations", // Multi-level ignore pattern
+			"nested/path",               // Another multi-level pattern
+		},
+		Packages: []*config.Package{
+			{
+				Source:  sourceDir,
+				Targets: []string{targetDir},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Check that ignored paths are not present in target
+	_, err = os.Lstat(filepath.Join(targetDir, "EmmyLua.spoon", "annotations"))
+	assert.True(t, os.IsNotExist(err), "EmmyLua.spoon/annotations should be ignored")
+
+	_, err = os.Lstat(filepath.Join(targetDir, "deep", "nested", "path"))
+	assert.True(t, os.IsNotExist(err), "nested/path should be ignored")
+
+	// Verify that we don't have the ignored files in the result
+	for _, created := range result.Created {
+		assert.NotContains(t, created, "annotations/file.lua")
+		assert.NotContains(t, created, "path/file.txt")
+	}
+}
+
+func TestMultiLevelNoFoldPatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create the directory structure from the example config
+	claudeDir := filepath.Join(sourceDir, ".claude")
+	require.NoError(t, os.MkdirAll(claudeDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(claudeDir, "commands"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "commands", "cmd.sh"), []byte("command"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "config.json"), []byte("config"), 0644))
+
+	configDir := filepath.Join(sourceDir, ".config")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(configDir, "nvim"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "nvim", "init.vim"), []byte("vim config"), 0644))
+
+	hammerspoonDir := filepath.Join(sourceDir, ".hammerspoon")
+	require.NoError(t, os.MkdirAll(hammerspoonDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(hammerspoonDir, "init.lua"), []byte("hammerspoon"), 0644))
+
+	// Create some other directories that should be folded by default
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "other-dir"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "other-dir", "file.txt"), []byte("other"), 0644))
+
+	cfg := &config.Config{
+		Packages: []*config.Package{
+			{
+				Source:      sourceDir,
+				Targets:     []string{targetDir},
+				DefaultFold: true, // Fold by default
+				NoFold: []string{
+					".claude/commands", // Multi-level no_fold pattern
+					".config/nvim",     // Another multi-level pattern
+					".hammerspoon",     // Single-level pattern
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Check that no_fold patterns are NOT folded (individual files should be linked)
+	_, err = os.Lstat(filepath.Join(targetDir, ".claude", "commands", "cmd.sh"))
+	assert.NoError(t, err, ".claude/commands/cmd.sh should be individually linked")
+
+	_, err = os.Lstat(filepath.Join(targetDir, ".config", "nvim", "init.vim"))
+	assert.NoError(t, err, ".config/nvim/init.vim should be individually linked")
+
+	_, err = os.Lstat(filepath.Join(targetDir, ".hammerspoon", "init.lua"))
+	assert.NoError(t, err, ".hammerspoon/init.lua should be individually linked")
+
+	// Check that other directories are folded as expected
+	info, err := os.Lstat(filepath.Join(targetDir, "other-dir"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0, "other-dir should be folded (symlinked)")
+
+	// Check that parent directories that should be folded are folded
+	info, err = os.Lstat(filepath.Join(targetDir, ".claude"))
+	require.NoError(t, err)
+	assert.False(t, info.Mode()&os.ModeSymlink != 0, ".claude should not be folded because it contains no_fold subdirectory")
+
+	// Verify file counts
+	expectedIndividualFiles := 4 // cmd.sh, config.json, init.vim, init.lua
+	expectedFoldedDirs := 1      // other-dir
+	totalExpected := expectedIndividualFiles + expectedFoldedDirs
+
+	assert.Equal(t, totalExpected, len(result.Created))
+}
+
+func TestMultiLevelFoldPatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create nested structure
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "app", "data", "cache"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "app", "data", "cache", "file1.txt"), []byte("cache1"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "app", "data", "cache", "file2.txt"), []byte("cache2"), 0644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "app", "data", "logs"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "app", "data", "logs", "app.log"), []byte("log"), 0644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "app", "src"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "app", "src", "main.js"), []byte("main"), 0644))
+
+	cfg := &config.Config{
+		Packages: []*config.Package{
+			{
+				Source:      sourceDir,
+				Targets:     []string{targetDir},
+				DefaultFold: false, // Don't fold by default
+				Fold: []string{
+					"app/data/cache", // Multi-level fold pattern
+					"app/data/logs",  // Another multi-level pattern
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Check that fold patterns are folded
+	info, err := os.Lstat(filepath.Join(targetDir, "app", "data", "cache"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0, "app/data/cache should be folded")
+
+	info, err = os.Lstat(filepath.Join(targetDir, "app", "data", "logs"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0, "app/data/logs should be folded")
+
+	// Check that non-fold patterns are NOT folded
+	_, err = os.Lstat(filepath.Join(targetDir, "app", "src", "main.js"))
+	assert.NoError(t, err, "app/src/main.js should be individually linked")
+
+	// Verify we have the expected number of created symlinks
+	expectedSymlinks := 3 // cache (folded), logs (folded), main.js (individual)
+	assert.Equal(t, expectedSymlinks, len(result.Created))
+}
+
+func TestMixedMultiLevelPatterns(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create a complex directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "system", "bin"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "system", "bin", "tool"), []byte("tool"), 0644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "system", "config", "app"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "system", "config", "app", "settings.json"), []byte("settings"), 0644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(sourceDir, "system", "ignore-me"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "system", "ignore-me", "file.txt"), []byte("ignore"), 0644))
+
+	cfg := &config.Config{
+		Ignore: []string{
+			"system/ignore-me", // Multi-level ignore
+		},
+		Packages: []*config.Package{
+			{
+				Source:      sourceDir,
+				Targets:     []string{targetDir},
+				DefaultFold: false,
+				Fold: []string{
+					"system/bin", // Multi-level fold
+				},
+				NoFold: []string{
+					"system/config/app", // Multi-level no_fold
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// Check ignored directory doesn't exist
+	_, err = os.Lstat(filepath.Join(targetDir, "system", "ignore-me"))
+	assert.True(t, os.IsNotExist(err), "system/ignore-me should be ignored")
+
+	// Check folded directory is a symlink
+	info, err := os.Lstat(filepath.Join(targetDir, "system", "bin"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0, "system/bin should be folded")
+
+	// Check no_fold directory has individual files
+	_, err = os.Lstat(filepath.Join(targetDir, "system", "config", "app", "settings.json"))
+	assert.NoError(t, err, "system/config/app/settings.json should be individually linked")
+
+	// Verify count (bin folded + settings.json individual)
+	assert.Equal(t, 2, len(result.Created))
 }
