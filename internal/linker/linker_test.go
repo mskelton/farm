@@ -347,6 +347,49 @@ func TestCustomIgnorePatterns(t *testing.T) {
 	assert.Contains(t, result.Created, filepath.Join(targetDir, "keep.txt"))
 }
 
+func TestExistingSymlinkAddedToLockfile(t *testing.T) {
+	_, sourceDir, targetDir := setupTestEnvironment(t)
+
+	// Create source file
+	testFile := filepath.Join(sourceDir, "test.txt")
+	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
+
+	// Create symlink manually (simulating existing symlink)
+	targetFile := filepath.Join(targetDir, "test.txt")
+	relSource, err := filepath.Rel(filepath.Dir(targetFile), testFile)
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(relSource, targetFile))
+
+	cfg := &config.Config{
+		Packages: []*config.Package{
+			{
+				Source:  sourceDir,
+				Targets: []string{targetDir},
+			},
+		},
+	}
+
+	err = cfg.Validate()
+	require.NoError(t, err)
+
+	lock := lockfile.New()
+	linker := New(cfg, lock, false)
+
+	result, err := linker.Link()
+	require.NoError(t, err)
+
+	// No new symlinks should be created since it already exists
+	assert.Len(t, result.Created, 0)
+	assert.Empty(t, result.Removed)
+	assert.Empty(t, result.Errors)
+
+	// But the existing symlink should be in the lockfile
+	assert.Len(t, lock.Symlinks, 1)
+	assert.Contains(t, lock.Symlinks, targetFile)
+	assert.Equal(t, testFile, lock.Symlinks[targetFile].Source)
+	assert.False(t, lock.Symlinks[targetFile].IsFolded)
+}
+
 func TestNestedFolding(t *testing.T) {
 	_, sourceDir, targetDir := setupTestEnvironment(t)
 
