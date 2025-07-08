@@ -106,56 +106,85 @@ func (c *Config) matchesPath(pattern, path string) bool {
 	if pattern == path {
 		return true
 	}
-	
+
 	// Check if path is under the pattern directory
 	if strings.HasPrefix(path, pattern+"/") {
 		return true
 	}
-	
+
 	// Split pattern and path into parts
 	pathParts := strings.Split(path, "/")
 	patternParts := strings.Split(pattern, "/")
-	
+
 	// Multi-level pattern matching (pattern contains '/')
 	if len(patternParts) > 1 {
-		// Try to match from start of path
-		if len(pathParts) >= len(patternParts) {
+		// Try exact substring matching - check if pattern appears anywhere in the path
+		for startIdx := 0; startIdx <= len(pathParts)-len(patternParts); startIdx++ {
+			allMatch := true
 			for i := range patternParts {
-				if matched, _ := filepath.Match(patternParts[i], pathParts[i]); !matched {
-					return false
+				if matched, _ := filepath.Match(patternParts[i], pathParts[startIdx+i]); !matched {
+					allMatch = false
+					break
 				}
 			}
+			if allMatch {
+				return true
+			}
+		}
+
+		// Also try substring matching within path components
+		// This handles cases like "spoon/annotations" matching "EmmyLua.spoon/annotations"
+		pathString := path
+		patternString := pattern
+
+		// Check if the pattern appears as a substring in the path
+		if strings.Contains(pathString, patternString) {
 			return true
 		}
+
+		// Check if pattern matches when we consider partial path components
+		for startIdx := 0; startIdx < len(pathParts); startIdx++ {
+			if len(pathParts[startIdx:]) >= len(patternParts) {
+				allMatch := true
+				for i := range patternParts {
+					pathComponent := pathParts[startIdx+i]
+					patternComponent := patternParts[i]
+
+					// Try exact match first
+					if matched, _ := filepath.Match(patternComponent, pathComponent); matched {
+						continue
+					}
+
+					// Try substring match within the component
+					if strings.Contains(pathComponent, patternComponent) {
+						continue
+					}
+
+					allMatch = false
+					break
+				}
+				if allMatch {
+					return true
+				}
+			}
+		}
+
 		return false
 	}
-	
+
 	// Single-part pattern matching
 	// First try full path match for glob patterns
 	if matched, _ := filepath.Match(pattern, path); matched {
 		return true
 	}
-	
-	// For filename patterns, check the last component
-	filename := filepath.Base(path)
-	if matched, _ := filepath.Match(pattern, filename); matched {
-		// If pattern contains wildcards, it's likely a file pattern (e.g., "*.log")
-		if strings.ContainsAny(pattern, "*?[") {
+
+	// Check if single pattern matches any directory component in the path
+	for _, part := range pathParts {
+		if matched, _ := filepath.Match(pattern, part); matched {
 			return true
 		}
-		
-		// For non-wildcard patterns (like "node_modules"), only match if:
-		// 1. It's at the root level (filename == path)
-		// 2. Or it's a direct child of root (no intermediate directories)
-		if filename == path {
-			return true // Root level file/directory
-		}
-		
-		// Check if it's a top-level directory name (e.g., "node_modules" should match "node_modules" but not "src/node_modules")
-		parentPath := strings.TrimSuffix(path, "/"+filename)
-		return !strings.Contains(parentPath, "/")
 	}
-	
+
 	return false
 }
 

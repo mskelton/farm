@@ -237,26 +237,32 @@ packages:
 		expected bool
 		desc     string
 	}{
-		// Multi-level ignore patterns
+		// Multi-level ignore patterns - exact matches
 		{"EmmyLua.spoon/annotations", true, "should ignore multi-level path"},
 		{"EmmyLua.spoon/annotations/file.lua", true, "should ignore files under multi-level path"},
 		{"EmmyLua.spoon/init.lua", false, "should not ignore sibling files"},
 		{"deep/nested/path", true, "should ignore nested directory"},
 		{"deep/nested/path/file.txt", true, "should ignore files under nested directory"},
 		{"deep/nested/other.txt", false, "should not ignore files in parent directory"},
-		
+
+		// Substring matching for multi-level patterns
+		{"prefix/EmmyLua.spoon/annotations", true, "should ignore multi-level path anywhere in hierarchy"},
+		{"some/prefix/EmmyLua.spoon/annotations/file.lua", true, "should ignore files under substring-matched path"},
+		{"other/deep/nested/path", true, "should ignore nested directory anywhere in hierarchy"},
+		{"prefix/deep/nested/path/file.txt", true, "should ignore files under substring-matched nested path"},
+
 		// Standard glob patterns
 		{"file.tmp", true, "should ignore files matching glob pattern"},
 		{"data/file.tmp", true, "should ignore files matching glob pattern in subdirectory"},
 		{"file.txt", false, "should not ignore files not matching glob pattern"},
-		
+
 		// Default ignore patterns
 		{".git", true, "should ignore git files"},
 		{".gitignore", true, "should ignore git files"},
 		{"README.md", true, "should ignore README files"},
 		{"LICENSE", true, "should ignore LICENSE files"},
 		{"COPYING", true, "should ignore COPYING files"},
-		
+
 		// Files that should NOT be ignored
 		{"normal.txt", false, "should not ignore normal files"},
 		{"EmmyLua.spoon", false, "should not ignore directory itself"},
@@ -273,7 +279,7 @@ packages:
 
 func TestMatchesPath(t *testing.T) {
 	config := &Config{}
-	
+
 	tests := []struct {
 		pattern  string
 		path     string
@@ -283,23 +289,36 @@ func TestMatchesPath(t *testing.T) {
 		// Direct matches
 		{"file.txt", "file.txt", true, "should match exact filename"},
 		{"dir/file.txt", "dir/file.txt", true, "should match exact path"},
-		
+
 		// Glob patterns
 		{"*.txt", "file.txt", true, "should match glob pattern"},
 		{"test*", "test_file.txt", true, "should match glob pattern with prefix"},
 		{"*.tmp", "backup.tmp", true, "should match glob pattern with suffix"},
-		
+
 		// Multi-level patterns
 		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/annotations", true, "should match multi-level path exactly"},
 		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/annotations/file.lua", true, "should match files under multi-level path"},
 		{"deep/nested/path", "deep/nested/path", true, "should match nested directory"},
 		{"deep/nested/path", "deep/nested/path/file.txt", true, "should match files under nested directory"},
-		
+
 		// Path hierarchy matching
 		{"app/data", "app/data/cache/file.txt", true, "should match files in subdirectories"},
 		{"app/*/logs", "app/prod/logs", true, "should match with wildcard in middle"},
 		{"app/*/logs", "app/prod/logs/app.log", true, "should match files under wildcard pattern"},
-		
+
+		// Substring matching for multi-level patterns
+		{"spoon/annotations", "EmmyLua.spoon/annotations", true, "should match multi-level pattern anywhere"},
+		{"spoon/annotations", "prefix/EmmyLua.spoon/annotations", true, "should match multi-level pattern with prefix"},
+		{"spoon/annotations", "EmmyLua.spoon/annotations/file.lua", true, "should match files under substring-matched pattern"},
+		{"nested/path", "deep/nested/path", true, "should match nested pattern anywhere"},
+		{"nested/path", "prefix/deep/nested/path/file.txt", true, "should match files under nested substring pattern"},
+
+		// Single-part substring matching
+		{"annotations", "EmmyLua.spoon/annotations", true, "should match single pattern anywhere in path"},
+		{"annotations", "some/other/annotations/file.lua", true, "should match single pattern in deep path"},
+		{"cache", "app/data/cache", true, "should match single directory anywhere"},
+		{"cache", "app/data/cache/file.txt", true, "should match files under single pattern anywhere"},
+
 		// Negative cases
 		{"file.txt", "other.txt", false, "should not match different filename"},
 		{"EmmyLua.spoon/annotations", "EmmyLua.spoon/init.lua", false, "should not match sibling files"},
@@ -307,7 +326,7 @@ func TestMatchesPath(t *testing.T) {
 		{"*.tmp", "file.txt", false, "should not match different extension"},
 		{"app/data", "app/config", false, "should not match sibling directories"},
 		{"app/data", "other/data", false, "should not match different parent"},
-		
+
 		// Edge cases
 		{"", "file.txt", false, "empty pattern should not match"},
 		{"file.txt", "", false, "should not match empty path"},
@@ -318,6 +337,69 @@ func TestMatchesPath(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			result := config.matchesPath(tt.pattern, tt.path)
 			assert.Equal(t, tt.expected, result, "matchesPath(%q, %q) = %v, want %v", tt.pattern, tt.path, result, tt.expected)
+		})
+	}
+}
+
+func TestSubstringIgnorePatterns(t *testing.T) {
+	configYAML := `
+ignore:
+  - "annotations"
+  - "spoon/annotations"
+  - "path"
+  - "nested"
+packages:
+  - source: ./test
+    targets:
+      - ./target
+`
+	tmpFile, err := os.CreateTemp("", "test-substring-*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(configYAML)
+	require.NoError(t, err)
+	tmpFile.Close()
+
+	config, err := Load(tmpFile.Name())
+	require.NoError(t, err)
+
+	tests := []struct {
+		path     string
+		expected bool
+		desc     string
+	}{
+		// Single-part substring matching
+		{"annotations", true, "should ignore 'annotations' directory at root"},
+		{"some/annotations", true, "should ignore 'annotations' directory anywhere"},
+		{"EmmyLua.spoon/annotations", true, "should ignore 'annotations' directory in nested path"},
+		{"some/deep/annotations/file.txt", true, "should ignore files under 'annotations' anywhere"},
+
+		{"path", true, "should ignore 'path' directory at root"},
+		{"prefix/path", true, "should ignore 'path' directory anywhere"},
+		{"deep/nested/path", true, "should ignore 'path' directory in nested location"},
+
+		{"nested", true, "should ignore 'nested' directory at root"},
+		{"some/nested", true, "should ignore 'nested' directory anywhere"},
+		{"deep/nested/other", true, "should ignore 'nested' directory in path"},
+
+		// Multi-part substring matching
+		{"spoon/annotations", true, "should ignore multi-part pattern at root"},
+		{"EmmyLua.spoon/annotations", true, "should ignore multi-part pattern anywhere"},
+		{"prefix/spoon/annotations", true, "should ignore multi-part pattern with prefix"},
+		{"EmmyLua.spoon/annotations/file.lua", true, "should ignore files under multi-part pattern"},
+
+		// Should NOT match
+		{"annotation", false, "should not match partial word"},
+		{"annotationss", false, "should not match word with suffix"},
+		{"spoon/annotation", false, "should not match incomplete multi-part pattern"},
+		{"other/file.txt", false, "should not match unrelated files"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := config.ShouldIgnore(tt.path)
+			assert.Equal(t, tt.expected, result, "ShouldIgnore(%q) = %v, want %v", tt.path, result, tt.expected)
 		})
 	}
 }
@@ -355,25 +437,25 @@ packages:
 		{"node_modules", true, "should ignore node_modules directory"},
 		{"node_modules/package/index.js", true, "should ignore files in node_modules"},
 		{"src/node_modules", true, "should ignore node_modules directory anywhere"},
-		
+
 		// Glob patterns
 		{"app.log", true, "should ignore log files"},
 		{"error.log", true, "should ignore log files"},
 		{"logs/app.log", true, "should ignore log files in subdirectories"},
 		{"app.txt", false, "should not ignore non-log files"},
-		
+
 		// Multi-level patterns
 		{"build/temp", true, "should ignore build/temp directory"},
 		{"build/temp/cache.dat", true, "should ignore files in build/temp"},
 		{"build/output", false, "should not ignore other build directories"},
 		{"temp", false, "should not ignore temp at root level"},
-		
+
 		// Wildcard patterns
 		{"src/components/generated", true, "should ignore generated in any src subdirectory"},
 		{"src/utils/generated", true, "should ignore generated in any src subdirectory"},
 		{"src/generated", false, "should not match direct src/generated"},
 		{"src/components/generated/types.ts", true, "should ignore files in generated directories"},
-		
+
 		// Complex nested patterns
 		{"docs/api/v1/internal", true, "should ignore versioned internal docs"},
 		{"docs/api/v2/internal", true, "should ignore versioned internal docs"},

@@ -1,2 +1,7 @@
+# Dist
 /farm
+/farm.exe
+/dist/
+
+# Example lockfile
 *.lock

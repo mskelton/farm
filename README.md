@@ -10,10 +10,22 @@ A modern dotfile manager inspired by GNU Stow with enhanced features for better 
 - **Multi-target support**: Symlink a single source to multiple target locations
 - **Granular folding control**: Fine-grained control over directory folding behavior
 
+
 ## Installation
 
+You can install farm by running the install script which will download
+the [latest release](https://github.com/mskelton/farm/releases/latest).
+
 ```bash
-go build -o farm ./cmd/farm
+curl -LSfs https://go.mskelton.dev/farm/install | sh
+```
+
+Or you can build from source.
+
+```bash
+git clone git@github.com:mskelton/farm.git
+cd farm
+go install ./cmd/farm
 ```
 
 ## Configuration
