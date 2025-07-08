@@ -49,7 +49,7 @@ var linkCmd = &cobra.Command{
 		}
 
 		if verbose || dryRun {
-			printResult(cmd, result)
+			printResult(cmd, result, dryRun)
 		}
 
 		if !dryRun {
@@ -93,7 +93,11 @@ var unlinkCmd = &cobra.Command{
 		}
 
 		if verbose || dryRun {
-			cmd.Printf("Removed symlinks:\n")
+			if dryRun {
+				cmd.Printf("Will remove symlinks:\n")
+			} else {
+				cmd.Printf("Removed symlinks:\n")
+			}
 			for _, removed := range result.Removed {
 				cmd.Printf("  - %s\n", removed)
 			}
@@ -161,16 +165,24 @@ var statusCmd = &cobra.Command{
 	},
 }
 
-func printResult(cmd *cobra.Command, result *linker.LinkResult) {
+func printResult(cmd *cobra.Command, result *linker.LinkResult, isDryRun bool) {
 	if len(result.Created) > 0 {
-		cmd.Println("Created symlinks:")
+		if isDryRun {
+			cmd.Println("Will create symlinks:")
+		} else {
+			cmd.Println("Created symlinks:")
+		}
 		for _, created := range result.Created {
 			cmd.Printf("  + %s\n", created)
 		}
 	}
 
 	if len(result.Removed) > 0 {
-		cmd.Println("\nRemoved dead symlinks:")
+		if isDryRun {
+			cmd.Println("\nWill remove dead symlinks:")
+		} else {
+			cmd.Println("\nRemoved dead symlinks:")
+		}
 		for _, removed := range result.Removed {
 			cmd.Printf("  - %s\n", removed)
 		}

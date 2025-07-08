@@ -150,6 +150,9 @@ func (l *Linker) createSymlink(source, target string, isFolded bool, result *Lin
 			}
 
 			if existingSourceAbs == source {
+				// Symlink already exists and points to correct source
+				// Add it to lockfile if not already tracked
+				l.lockFile.AddSymlink(target, source, isFolded)
 				return nil
 			}
 
