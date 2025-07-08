@@ -4,9 +4,9 @@ set -eu
 printf '\n'
 
 # Name of the project, customize the repo name or display name as necessary
-BINARY_NAME=pr
+BINARY_NAME=farm
 REPO_NAME=
-DISPLAY_NAME=
+DISPLAY_NAME=Farm
 
 BOLD="$(tput bold 2>/dev/null || printf '')"
 GREY="$(tput setaf 0 2>/dev/null || printf '')"

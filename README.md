@@ -13,7 +13,7 @@ A modern dotfile manager inspired by GNU Stow with enhanced features for better 
 
 ## Installation
 
-You can install farm by running the install script which will download
+You can install Farm by running the install script which will download
 the [latest release](https://github.com/mskelton/farm/releases/latest).
 
 ```bash
@@ -88,7 +88,7 @@ farm link -v
 
 ## Folding Behavior
 
-By default, `farm` creates individual symlinks for each file (no-folding). You can control this behavior:
+By default, Farm creates individual symlinks for each file (no-folding). You can control this behavior:
 
 - `default_fold: true`: Fold directories by default (symlink entire directories)
 - `fold: [list]`: Always fold these directories/patterns
