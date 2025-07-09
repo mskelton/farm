@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/user/farm/internal/config"
-	"github.com/user/farm/internal/lockfile"
+	"github.com/mskelton/farm/internal/config"
+	"github.com/mskelton/farm/internal/lockfile"
 )
 
 type Linker struct {

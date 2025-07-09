@@ -1,4 +1,4 @@
-module github.com/user/farm
+module github.com/mskelton/farm
 
 go 1.24.4
 

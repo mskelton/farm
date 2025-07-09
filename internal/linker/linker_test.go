@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mskelton/farm/internal/config"
+	"github.com/mskelton/farm/internal/lockfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/user/farm/internal/config"
-	"github.com/user/farm/internal/lockfile"
 )
 
 func setupTestEnvironment(t *testing.T) (string, string, string) {

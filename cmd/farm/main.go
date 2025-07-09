@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mskelton/farm/internal/config"
+	"github.com/mskelton/farm/internal/linker"
+	"github.com/mskelton/farm/internal/lockfile"
 	"github.com/spf13/cobra"
-	"github.com/user/farm/internal/config"
-	"github.com/user/farm/internal/linker"
-	"github.com/user/farm/internal/lockfile"
 )
 
 var (
