@@ -136,16 +136,18 @@ var statusCmd = &cobra.Command{
 			return nil
 		}
 
-		cmd.Printf("Tracking %d symlinks:\n\n", len(lock.Symlinks))
-
 		if verbose {
-			for target, link := range lock.Symlinks {
-				cmd.Printf("  %s -> %s", target, link.Source)
+			cmd.Printf("Tracking %d symlinks:\n\n", len(lock.Symlinks))
+
+			for _, link := range lock.Symlinks.Sorted() {
+				cmd.Printf("  %s -> %s", link.Target, link.Source)
 				if link.IsFolded {
 					cmd.Print(" [folded]")
 				}
 				cmd.Println()
 			}
+		} else {
+			cmd.Printf("Tracking %d symlinks\n", len(lock.Symlinks))
 		}
 
 		deadLinks, err := lock.GetDeadSymlinks()

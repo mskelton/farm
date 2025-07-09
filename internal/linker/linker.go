@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/user/farm/internal/config"
@@ -233,22 +232,16 @@ func (l *Linker) Unlink() (*LinkResult, error) {
 		Errors:  []error{},
 	}
 
-	keys := make([]string, 0)
-	for k := range l.lockFile.Symlinks {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, target := range keys {
+	for _, link := range l.lockFile.Symlinks.Sorted() {
 		if !l.dryRun {
-			if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to remove symlink %s: %w", target, err))
+			if err := os.Remove(link.Target); err != nil && !os.IsNotExist(err) {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to remove symlink %s: %w", link.Target, err))
 				continue
 			}
 		}
 
-		l.lockFile.RemoveSymlink(target)
-		result.Removed = append(result.Removed, target)
+		l.lockFile.RemoveSymlink(link.Target)
+		result.Removed = append(result.Removed, link.Target)
 	}
 
 	return result, nil

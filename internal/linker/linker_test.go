@@ -58,6 +58,9 @@ func TestLinkSimpleFile(t *testing.T) {
 	assert.Equal(t, "test content", string(content))
 
 	assert.Contains(t, lock.Symlinks, expectedLink)
+	assert.Equal(t, testFile, lock.Symlinks[expectedLink].Source)
+	assert.Equal(t, expectedLink, lock.Symlinks[expectedLink].Target)
+	assert.False(t, lock.Symlinks[expectedLink].IsFolded)
 }
 
 func TestLinkMultipleTargets(t *testing.T) {
@@ -386,6 +389,7 @@ func TestExistingSymlinkAddedToLockfile(t *testing.T) {
 	// But the existing symlink should be in the lockfile
 	assert.Len(t, lock.Symlinks, 1)
 	assert.Contains(t, lock.Symlinks, targetFile)
+	assert.Equal(t, targetFile, lock.Symlinks[targetFile].Target)
 	assert.Equal(t, testFile, lock.Symlinks[targetFile].Source)
 	assert.False(t, lock.Symlinks[targetFile].IsFolded)
 }
