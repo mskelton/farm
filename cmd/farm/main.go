@@ -27,6 +27,7 @@ var rootCmd = &cobra.Command{
 - Support for symlinking to multiple targets
 - Granular folding/no-folding control
 - Automatic cleanup of dead symlinks`,
+	SilenceUsage: true,
 }
 
 var linkCmd = &cobra.Command{
@@ -42,6 +43,10 @@ var linkCmd = &cobra.Command{
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		if err := validateEnvironmentArg(args, cfg); err != nil {
+			return err
 		}
 
 		// Filter packages for the specified environment
@@ -115,6 +120,10 @@ var unlinkCmd = &cobra.Command{
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		if err := validateEnvironmentArg(args, cfg); err != nil {
+			return err
 		}
 
 		// Filter packages for the specified environment
@@ -197,17 +206,16 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("failed to load lockfile: %w", err)
 		}
 
-		if len(lock.Symlinks) == 0 {
-			cmd.Println("No symlinks tracked")
-			return nil
-		}
-
 		// If environment is specified, filter symlinks based on config
 		var relevantSymlinks []lockfile.Symlink
 		if environment != "" {
 			cfg, err := config.Load(configPath)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			if err := validateEnvironmentArg(args, cfg); err != nil {
+				return err
 			}
 
 			packages := cfg.GetPackagesForEnvironment(environment)
@@ -236,6 +244,16 @@ var statusCmd = &cobra.Command{
 				}
 			}
 		} else {
+			// Check if environment is required
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			if err := validateEnvironmentArg(args, cfg); err != nil {
+				return err
+			}
+
 			relevantSymlinks = lock.Symlinks.Sorted()
 		}
 
@@ -313,6 +331,25 @@ func printResult(cmd *cobra.Command, result *linker.LinkResult, isDryRun bool) {
 			cmd.Printf("  - %s\n", removed)
 		}
 	}
+}
+
+func hasEnvironmentPackages(cfg *config.Config) bool {
+	for _, pkg := range cfg.Packages {
+		if len(pkg.Environments) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func validateEnvironmentArg(args []string, cfg *config.Config) error {
+	if hasEnvironmentPackages(cfg) && len(args) == 0 {
+		available := cfg.GetAvailableEnvironments()
+
+		return fmt.Errorf("environment not specified (available environments: %v)", available)
+	}
+
+	return nil
 }
 
 func init() {

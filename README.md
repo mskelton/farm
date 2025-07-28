@@ -75,7 +75,7 @@ packages:
 ### Create symlinks
 
 ```bash
-# Link all packages (default behavior)
+# Link all packages (default behavior - only when no packages have environments)
 farm link
 
 # Link only work-specific packages
@@ -85,10 +85,12 @@ farm link work
 farm link home
 ```
 
+**Note**: When any package in your configuration has `environments` specified, you must provide an environment argument to all commands.
+
 ### Remove symlinks
 
 ```bash
-# Remove all symlinks
+# Remove all symlinks (only when no packages have environments)
 farm unlink
 
 # Remove only work-specific symlinks
@@ -101,7 +103,7 @@ farm unlink home
 ### Check status
 
 ```bash
-# Check status of all symlinks
+# Check status of all symlinks (only when no packages have environments)
 farm status
 
 # Check status of work environment
@@ -144,6 +146,8 @@ Farm supports conditional configuration through environments. This allows you to
 - **No environments specified**: Package is always enabled (backward compatible)
 - **Single environment**: Package only enabled for that specific environment
 - **Multiple environments**: Package enabled for all specified environments
+
+**Important**: When any package in your configuration has `environments` specified, you must provide an environment argument to all commands (`link`, `unlink`, `status`). This ensures you're explicit about which environment you want to use.
 
 ### Example Workflows
 
