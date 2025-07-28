@@ -12,15 +12,16 @@ import (
 type Config struct {
 	Packages    []*Package `yaml:"packages"`
 	Ignore      []string   `yaml:"ignore,omitempty"`
-	ignoreGlobs []string
+	IgnoreGlobs []string
 }
 
 type Package struct {
-	Source      string   `yaml:"source"`
-	Targets     []string `yaml:"targets"`
-	NoFold      []string `yaml:"no_fold,omitempty"`
-	Fold        []string `yaml:"fold,omitempty"`
-	DefaultFold bool     `yaml:"default_fold"`
+	Source       string   `yaml:"source"`
+	Targets      []string `yaml:"targets"`
+	NoFold       []string `yaml:"no_fold,omitempty"`
+	Fold         []string `yaml:"fold,omitempty"`
+	DefaultFold  bool     `yaml:"default_fold"`
+	Environments []string `yaml:"environments,omitempty"`
 }
 
 var defaultIgnorePatterns = []string{
@@ -87,13 +88,13 @@ func (c *Config) Validate() error {
 	// Compile ignore patterns at config level
 	allPatterns := defaultIgnorePatterns
 	allPatterns = append(allPatterns, c.Ignore...)
-	c.ignoreGlobs = allPatterns
+	c.IgnoreGlobs = allPatterns
 
 	return nil
 }
 
 func (c *Config) ShouldIgnore(path string) bool {
-	for _, pattern := range c.ignoreGlobs {
+	for _, pattern := range c.IgnoreGlobs {
 		if c.matchesPath(pattern, path) {
 			return true
 		}
@@ -194,4 +195,52 @@ func expandHome(path string) string {
 		return filepath.Join(home, path[1:])
 	}
 	return path
+}
+
+func (c *Config) GetPackagesForEnvironment(env string) []*Package {
+	if env == "" {
+		// If no environment specified, return all packages that don't have environment restrictions
+		var packages []*Package
+		for _, pkg := range c.Packages {
+			if len(pkg.Environments) == 0 {
+				packages = append(packages, pkg)
+			}
+		}
+		return packages
+	}
+
+	var packages []*Package
+	for _, pkg := range c.Packages {
+		// Include packages that are either:
+		// 1. Not environment-specific (no environments field)
+		// 2. Explicitly enabled for the current environment
+		if len(pkg.Environments) == 0 || contains(pkg.Environments, env) {
+			packages = append(packages, pkg)
+		}
+	}
+	return packages
+}
+
+func (c *Config) GetAvailableEnvironments() []string {
+	envMap := make(map[string]bool)
+	for _, pkg := range c.Packages {
+		for _, env := range pkg.Environments {
+			envMap[env] = true
+		}
+	}
+
+	var environments []string
+	for env := range envMap {
+		environments = append(environments, env)
+	}
+	return environments
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

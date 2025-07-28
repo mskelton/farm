@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -468,6 +470,112 @@ packages:
 		t.Run(tt.desc, func(t *testing.T) {
 			result := config.ShouldIgnore(tt.path)
 			assert.Equal(t, tt.expected, result, "ShouldIgnore(%q) = %v, want %v", tt.path, result, tt.expected)
+		})
+	}
+}
+
+func TestGetPackagesForEnvironment(t *testing.T) {
+	config := &Config{
+		Packages: []*Package{
+			{
+				Source:  "/always",
+				Targets: []string{"/target1"},
+			},
+			{
+				Source:       "/work-only",
+				Targets:      []string{"/target2"},
+				Environments: []string{"work"},
+			},
+			{
+				Source:       "/home-only",
+				Targets:      []string{"/target3"},
+				Environments: []string{"home"},
+			},
+			{
+				Source:       "/both",
+				Targets:      []string{"/target4"},
+				Environments: []string{"work", "home"},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		env      string
+		expected int
+	}{
+		{"no environment", "", 1},             // Only packages without environments
+		{"work environment", "work", 3},       // always + work-only + both
+		{"home environment", "home", 3},       // always + home-only + both
+		{"unknown environment", "unknown", 1}, // Only packages without environments
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packages := config.GetPackagesForEnvironment(tt.env)
+			if len(packages) != tt.expected {
+				t.Errorf("expected %d packages, got %d", tt.expected, len(packages))
+			}
+		})
+	}
+}
+
+func TestGetAvailableEnvironments(t *testing.T) {
+	config := &Config{
+		Packages: []*Package{
+			{
+				Source:  "/always",
+				Targets: []string{"/target1"},
+			},
+			{
+				Source:       "/work-only",
+				Targets:      []string{"/target2"},
+				Environments: []string{"work"},
+			},
+			{
+				Source:       "/home-only",
+				Targets:      []string{"/target3"},
+				Environments: []string{"home"},
+			},
+			{
+				Source:       "/both",
+				Targets:      []string{"/target4"},
+				Environments: []string{"work", "home"},
+			},
+		},
+	}
+
+	environments := config.GetAvailableEnvironments()
+	expected := []string{"work", "home"}
+
+	// Sort both slices for comparison
+	sort.Strings(environments)
+	sort.Strings(expected)
+
+	if !reflect.DeepEqual(environments, expected) {
+		t.Errorf("expected environments %v, got %v", expected, environments)
+	}
+}
+
+func TestContains(t *testing.T) {
+	tests := []struct {
+		name     string
+		slice    []string
+		item     string
+		expected bool
+	}{
+		{"contains item", []string{"a", "b", "c"}, "b", true},
+		{"does not contain item", []string{"a", "b", "c"}, "d", false},
+		{"empty slice", []string{}, "a", false},
+		{"case sensitive", []string{"A", "B", "C"}, "a", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := contains(tt.slice, tt.item)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
 		})
 	}
 }

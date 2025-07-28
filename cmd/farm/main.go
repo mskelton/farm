@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mskelton/farm/internal/config"
 	"github.com/mskelton/farm/internal/linker"
@@ -15,6 +16,7 @@ var (
 	lockfilePath string
 	dryRun       bool
 	verbose      bool
+	environment  string
 )
 
 var rootCmd = &cobra.Command{
@@ -28,13 +30,38 @@ var rootCmd = &cobra.Command{
 }
 
 var linkCmd = &cobra.Command{
-	Use:   "link",
+	Use:   "link [environment]",
 	Short: "Create symlinks",
-	Args:  cobra.NoArgs,
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get environment from args if provided
+		if len(args) > 0 {
+			environment = args[0]
+		}
+
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Filter packages for the specified environment
+		packages := cfg.GetPackagesForEnvironment(environment)
+		if len(packages) == 0 {
+			if environment != "" {
+				cmd.Printf("No packages found for environment '%s'\n", environment)
+				available := cfg.GetAvailableEnvironments()
+				if len(available) > 0 {
+					cmd.Printf("Available environments: %v\n", available)
+				}
+				return nil
+			}
+		}
+
+		// Create a temporary config with filtered packages
+		filteredConfig := &config.Config{
+			Packages:    packages,
+			Ignore:      cfg.Ignore,
+			IgnoreGlobs: cfg.IgnoreGlobs,
 		}
 
 		lock, err := lockfile.Load(lockfilePath)
@@ -42,7 +69,7 @@ var linkCmd = &cobra.Command{
 			return fmt.Errorf("failed to load lockfile: %w", err)
 		}
 
-		l := linker.New(cfg, lock, dryRun)
+		l := linker.New(filteredConfig, lock, dryRun)
 		result, err := l.Link()
 		if err != nil {
 			return fmt.Errorf("failed to link: %w", err)
@@ -56,7 +83,11 @@ var linkCmd = &cobra.Command{
 			if err := lock.Save(lockfilePath); err != nil {
 				return fmt.Errorf("failed to save lockfile: %w", err)
 			}
-			cmd.Printf("✓ Linked %d files, removed %d dead links\n", len(result.Created), len(result.Removed))
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" for environment '%s'", environment)
+			}
+			cmd.Printf("✓ Linked %d files, removed %d dead links%s\n", len(result.Created), len(result.Removed), envMsg)
 		}
 
 		if len(result.Errors) > 0 {
@@ -72,13 +103,38 @@ var linkCmd = &cobra.Command{
 }
 
 var unlinkCmd = &cobra.Command{
-	Use:   "unlink",
+	Use:   "unlink [environment]",
 	Short: "Remove symlinks",
-	Args:  cobra.NoArgs,
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get environment from args if provided
+		if len(args) > 0 {
+			environment = args[0]
+		}
+
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Filter packages for the specified environment
+		packages := cfg.GetPackagesForEnvironment(environment)
+		if len(packages) == 0 {
+			if environment != "" {
+				cmd.Printf("No packages found for environment '%s'\n", environment)
+				available := cfg.GetAvailableEnvironments()
+				if len(available) > 0 {
+					cmd.Printf("Available environments: %v\n", available)
+				}
+				return nil
+			}
+		}
+
+		// Create a temporary config with filtered packages
+		filteredConfig := &config.Config{
+			Packages:    packages,
+			Ignore:      cfg.Ignore,
+			IgnoreGlobs: cfg.IgnoreGlobs,
 		}
 
 		lock, err := lockfile.Load(lockfilePath)
@@ -86,7 +142,7 @@ var unlinkCmd = &cobra.Command{
 			return fmt.Errorf("failed to load lockfile: %w", err)
 		}
 
-		l := linker.New(cfg, lock, dryRun)
+		l := linker.New(filteredConfig, lock, dryRun)
 		result, err := l.Unlink()
 		if err != nil {
 			return fmt.Errorf("failed to unlink: %w", err)
@@ -107,7 +163,11 @@ var unlinkCmd = &cobra.Command{
 			if err := lock.Save(lockfilePath); err != nil {
 				return fmt.Errorf("failed to save lockfile: %w", err)
 			}
-			cmd.Printf("✓ Removed %d symlinks\n", len(result.Removed))
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" for environment '%s'", environment)
+			}
+			cmd.Printf("✓ Removed %d symlinks%s\n", len(result.Removed), envMsg)
 		}
 
 		if len(result.Errors) > 0 {
@@ -123,9 +183,15 @@ var unlinkCmd = &cobra.Command{
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status [environment]",
 	Short: "Show status of symlinks",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get environment from args if provided
+		if len(args) > 0 {
+			environment = args[0]
+		}
+
 		lock, err := lockfile.Load(lockfilePath)
 		if err != nil {
 			return fmt.Errorf("failed to load lockfile: %w", err)
@@ -136,10 +202,60 @@ var statusCmd = &cobra.Command{
 			return nil
 		}
 
-		if verbose {
-			cmd.Printf("Tracking %d symlinks:\n\n", len(lock.Symlinks))
+		// If environment is specified, filter symlinks based on config
+		var relevantSymlinks []lockfile.Symlink
+		if environment != "" {
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 
+			packages := cfg.GetPackagesForEnvironment(environment)
+			if len(packages) == 0 {
+				cmd.Printf("No packages found for environment '%s'\n", environment)
+				available := cfg.GetAvailableEnvironments()
+				if len(available) > 0 {
+					cmd.Printf("Available environments: %v\n", available)
+				}
+				return nil
+			}
+
+			// Get all source paths for the environment
+			sourcePaths := make(map[string]bool)
+			for _, pkg := range packages {
+				sourcePaths[pkg.Source] = true
+			}
+
+			// Filter symlinks that belong to this environment
 			for _, link := range lock.Symlinks.Sorted() {
+				for sourcePath := range sourcePaths {
+					if strings.HasPrefix(link.Source, sourcePath) {
+						relevantSymlinks = append(relevantSymlinks, link)
+						break
+					}
+				}
+			}
+		} else {
+			relevantSymlinks = lock.Symlinks.Sorted()
+		}
+
+		if len(relevantSymlinks) == 0 {
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" for environment '%s'", environment)
+			}
+			cmd.Printf("No symlinks tracked%s\n", envMsg)
+			return nil
+		}
+
+		if verbose {
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" for environment '%s'", environment)
+			}
+			cmd.Printf("Tracking %d symlinks%s:\n\n", len(relevantSymlinks), envMsg)
+
+			for _, link := range relevantSymlinks {
 				cmd.Printf("  %s -> %s", link.Target, link.Source)
 				if link.IsFolded {
 					cmd.Print(" [folded]")
@@ -147,7 +263,11 @@ var statusCmd = &cobra.Command{
 				cmd.Println()
 			}
 		} else {
-			cmd.Printf("Tracking %d symlinks\n", len(lock.Symlinks))
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" for environment '%s'", environment)
+			}
+			cmd.Printf("Tracking %d symlinks%s\n", len(relevantSymlinks), envMsg)
 		}
 
 		deadLinks, err := lock.GetDeadSymlinks()
@@ -160,7 +280,11 @@ var statusCmd = &cobra.Command{
 			for _, dead := range deadLinks {
 				cmd.Printf("  ✗ %s\n", dead)
 			}
-			cmd.Println("\nRun 'farm link' to clean up dead symlinks")
+			envMsg := ""
+			if environment != "" {
+				envMsg = fmt.Sprintf(" %s", environment)
+			}
+			cmd.Printf("\nRun 'farm link%s' to clean up dead symlinks\n", envMsg)
 		}
 
 		return nil

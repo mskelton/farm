@@ -1,14 +1,26 @@
 packages:
+  # Package that's always enabled (no environments specified)
   - source: ./vim
     targets:
       - test-home/.vim
       - test-home/.config/nvim
 
+  # Package only enabled for work environment
   - source: ./vscode
     targets:
       - test-home/Library/Application Support/Code/User
       - test-home/Library/Application Support/Cursor/User
+    environments:
+      - work
 
+  # Package only enabled for home environment
+  - source: ./personal-config
+    targets:
+      - test-home/.config
+    environments:
+      - home
+
+  # Package enabled for both work and home
   - source: ./.config
     targets:
       - test-home/.config
@@ -16,6 +28,9 @@ packages:
     fold:
       - bin
       - nested/dir
+    environments:
+      - work
+      - home
 
 ignore:
   - "*.tmp"
